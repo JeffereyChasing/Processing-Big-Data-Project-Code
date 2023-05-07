@@ -33,3 +33,6 @@ LOCATION "hdfs://nyu-dataproc-m/user/yw4359_nyu_edu/hw10/result";
 
 	creates a Hive table based on the dataset located in "hdfs://nyu-dataproc-m/user/yw4359_nyu_edu/hw10/result" 
 
+
+After completing above steps, run the codes in COde.txt in order
+
