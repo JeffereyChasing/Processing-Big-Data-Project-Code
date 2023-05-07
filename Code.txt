@@ -1,0 +1,373 @@
+
+
+Spark:
+
+0. spark-shell --deploy-mode client
+
+	start spark
+
+1. Code: val df = spark.sql("show databases");
+	
+	show all databases
+
+2. Code: val db = spark.sql("use yw4359_nyu_edu");
+
+	use my database
+
+3. Code: val dataframe = spark.sql("select * from stock");
+
+	create a table based on the stock table in Hive 
+
+4. Code: var data = dataframe.filter(dataframe("company")!== "Conme");
+
+	creates a new table data that eliminates the variable name columns
+
+5. data = data.withColumn("2020",col("trading_month") < "2021");
+
+	creates a new column to determine whether the date is in 2020
+
+6. data = data.withColumn("trading_month",from_unixtime(unix_timestamp($"trading_month".cast( "string"),"yyyyMM")))
+
+	modifies the trading month column to a new format
+
+6. import org.apache.spark.sql.expressions._
+
+	import packages
+
+7. val windowSpec = Window.partitionBy("stockid").orderBy("trading_month")
+
+	split by stockid and order by trading_month
+
+8.data = data.withColumn("value_difference", $"marketvalue_share" - when((lag("marketvalue_share", 23).over(windowSpec)).isNull, 0).otherwise(lag("marketvalue_share", 23).over(windowSpec)))
+
+	creates a new column called value_difference that calculates all stocks' market value difference in two years. Two situations: the price went up and the price went down. The column value is only valid for the last record for all stock
+
+9. data = data.withColumn("price_difference", $"closing_price" - when((lag("closing_price", 23).over(windowSpec)).isNull, 0).otherwise(lag("closing_price", 23).over(windowSpec)))
+
+	Similar logic as above
+
+
+
+
+
+
+
+Profiling:
+
+
+	Code: data.select(countDistinct("stockid")).show();
+	Documentation: This code shows the number of distinct value in “stockid” column, and this code is ran with the variable name changed to get the distinct values for each column
+
+	Code: data.select(mean("stockid")).show();
+	Documentation: This code output the mean of the “stockid” column, and the code is ran with the variable name changed to get the mean for each numerical column
+
+	Code: data.agg(expr("percentile(stockid, 0.5)").as("stockid_50_percentile")).show()
+	Documentation: This code shows the median of the values in “stockid” column, and the code is ran with the variable name changed to get the median for each numerical column
+
+	Code:	data.groupBy($"stockid").count.orderBy($"count".desc).limit(1).show();
+	Documentation: This code show the value in “stockid” column with most frequent occurrence, and the code is ran with the variable name changed to get the mode of each numerical column
+
+	Code: data.groupBy($"company").count.orderBy($"count".desc).limit(10).show();
+	Documentation: This code show the top 10 most frequent value in text data column “company”, and the code is ran with variable name changed for text column to get top 10 most frequent count in each text column
+
+
+	
+
+
+
+10. var difference  = data.filter(data("trading_month")=== "2021-12-01 00:00:00");
+
+	creates a new table that only includes the last row of all stocks
+
+11. difference = difference.withColumn("pd_ratio",when($"price_difference"<0,col("price_difference")/(col("closing_price")+abs(col("price_difference")))).otherwise(col("price_difference")/(col("closing_price")-abs(col("price_difference")))));
+
+	adds a new column pd_ratio that calculates the percentage that a stock's price rose/fell in terms of the original price. We need to consider two situation:  the price went up and the price went down. In case of theprice went up:
+	price difference divided by the difference between closing price and price difference. In case of the price went down, price difference divied by the absolute value of price difference + closing price
+
+12. difference = difference.withColumn("md_ratio",when($"value_difference"<0,col("value_difference")/(col("marketvalue_share")+abs(col("value_difference")))).otherwise(col("value_difference")/(col("marketvalue_share")-abs(col("value_difference")))));
+
+	Similar logic as above
+
+13. difference.sort(col("md_ratio").desc).show(15)
+
+	shows the top 15 market value change ratio 
+
+14. difference.sort(col("md_ratio").asc).show(15)
+
+	shows the bottom 15 market value change ratio
+
+15. data.select("industry_code_a").distinct().show()
+
+	shows different industry in the table
+
+16. var Conglomerates = difference.filter(difference("industry_code_a")=== "Conglomerates");
+
+	creates a table for conglomerates using filter where the industry_code_a column has "Conglomerates" value
+
+17.var Public = difference.filter(difference("industry_code_a")=== "Public Utility");
+
+	creates a table for public utility using filter where the industry_code_a column has "Public Utility" value
+
+18. var Industrials = difference.filter(difference("industry_code_a")=== "Industrials");
+
+	creates a table for Industrials using filter where the industry_code_a column has "Industrials" value
+
+19. var Properties = difference.filter(difference("industry_code_a")=== "Properties");
+
+	creates a table for Properties using filter where the industry_code_a column has "Properties" value
+
+20. var Commerce = difference.filter(difference("industry_code_a")=== "Commerce");
+
+	creates a table for Commerce using filter where the industry_code_a column has "Commerce" value
+
+21. var Finance = difference.filter(difference("industry_code_a")=== "Finance");
+
+	creates a table for Finance using filter where the industry_code_a column has "Finance" value
+
+
+
+22. Finance.sort(col("pd_ratio").desc).show(15)
+
+	sees the top 15 price change ratio in Finance industry
+
+23. Conglomerates.sort(col("pd_ratio").desc).show(15)
+
+	sees the top 15 price change ratio in Conglomerates industry
+
+24. Industrials.sort(col("pd_ratio").desc).show(15)
+
+	sees the top 15 price change ratio in Industrial industry
+
+25. Commerce.sort(col("pd_ratio").desc).show(15)
+
+	sees the top 15 price change ratio in Commerce industry
+
+26. Public.sort(col("pd_ratio").desc).show(15)
+
+	sees the top 15 price change ratio in Public utility industry
+
+27. Properties.sort(col("pd_ratio").desc).show(15)
+
+	sees the top 15 price change ratio in Properties industry
+
+
+
+
+28. Finance.sort(col("pd_ratio").asc).show(15)
+
+	sees the Bottom 15 price change ratio in Finance industry
+
+29. Conglomerates.sort(col("pd_ratio").asc).show(15)
+
+	sees the Bottom 15 price change ratio in Conglomerates industry
+
+30. Industrials.sort(col("pd_ratio").asc).show(15)
+
+	sees the Bottom 15 price change ratio in Industrial industry
+
+31. Commerce.sort(col("pd_ratio").asc).show(15)
+
+	sees the Bottom 15 price change ratio in Commerce industry
+
+32. Public.sort(col("pd_ratio").asc).show(15)
+
+	sees the Bottom 15 price change ratio in Public utility industry
+
+33. Properties.sort(col("pd_ratio").asc).show(15)
+
+	sees the Bottom 15 price change ratio in Properties industry
+
+
+
+
+34. Finance.sort(col("md_ratio").desc).show(15)
+
+	sees the top 15 market value change ratio in Finance industry
+
+35. Conglomerates.sort(col("md_ratio").desc).show(15)
+
+	sees the top 15 market value change ratio in Conglomerates industry
+
+36. Industrials.sort(col("md_ratio").desc).show(15)
+
+	sees the top 15 market value change ratio in Industrial industry
+
+37. Commerce.sort(col("md_ratio").desc).show(15)
+
+	sees the top 15 market value change ratio in Commerce industry
+
+38. Public.sort(col("md_ratio").desc).show(15)
+
+	sees the top 15 market value change ratio in Public utility industry
+
+39. Properties.sort(col("md_ratio").desc).show(15)
+
+	sees the top 15 market value change ratio in Properties industry
+
+
+
+40. Finance.sort(col("md_ratio").asc).show(15)
+
+	sees the Bottom 15 market value change ratio in Finance industry
+
+41. Conglomerates.sort(col("md_ratio").asc).show(15)
+
+	sees the Bottom 15 market value change ratio in Conglomerates industry
+
+42. Industrials.sort(col("md_ratio").asc).show(15)
+
+	sees the Bottom 15 market value change ratio in Industrial industry
+
+43. Commerce.sort(col("md_ratio").asc).show(15)
+
+	sees the Bottom 15 market value change ratio in Commerce industry
+
+44. Public.sort(col("md_ratio").asc).show(15)
+
+	sees the Bottom 15 market value change ratio in Public utility industry
+
+45. Properties.sort(col("md_ratio").asc).show(15)
+
+	sees the Bottom 15 market value change ratio in Properties industry
+
+
+
+46. Conglomerates.select(mean("pd_ratio")).show();
+
+	calculates the mean of price change ratio of the Conglomerates table
+
+47. Finance.select(mean("pd_ratio")).show();
+
+	calculates the mean of price change ratio of the Finance table
+
+48. Industrials.select(mean("pd_ratio")).show();
+
+	calculates the mean of price change ratio of the Industrials table
+
+49. Commerce.select(mean("pd_ratio")).show();
+
+	calculates the mean of price change ratio of the Commerce table
+
+50. Public.select(mean("pd_ratio")).show();
+
+	calculates the mean of price change ratio of the Public table
+
+51. Properties.select(mean("pd_ratio")).show();
+
+	calculates the mean of price change ratio of the Properties table
+
+
+
+
+
+52. Conglomerates.select(mean("md_ratio")).show();
+
+	calculates the mean of market value change ratio of the Conglomerates table
+
+53. Finance.select(mean("md_ratio")).show();
+
+	calculates the mean of market value change ratio of the Finance table
+
+54. Industrials.select(mean("md_ratio")).show();
+
+	calculates the mean of market value change ratio of the Industrials table
+
+55. Commerce.select(mean("md_ratio")).show();
+
+	calculates the mean of market value change ratio of the Commerce table
+
+56. Public.select(mean("md_ratio")).show();
+
+	calculates the mean of market value change ratio of the Public table
+
+57. Properties.select(mean("md_ratio")).show();
+
+	calculates the mean of market value change ratio of the Properties table
+
+
+58. data  = data.join(    data.groupBy("stockid").agg(   (max("marketvalue_share")-min("marketvalue_share"))/max("marketvalue_share")    ), "stockid")
+
+	calculates the all stocks' fluctuation
+
+59. data  = data.withColumnRenamed("((max(marketvalue_share) - min(marketvalue_share)) / max(marketvalue_share))","fluctuation")
+
+	rename column for simplicity
+
+60. var difference  = data.filter(data("trading_month")=== "2021-12-01 00:00:00");
+
+	integrate new column to the difference table
+
+
+
+61. var Industrials = difference.filter(difference("industry_code_a")=== "Industrials");
+
+	integrate new column to the Industrials table
+
+
+62. var Properties = difference.filter(difference("industry_code_a")=== "Properties");
+
+	integrate new column to the Properties table
+
+
+63. var Conglomerates = difference.filter(difference("industry_code_a")=== "Conglomerates");
+
+	integrate new column to the Conglomerates table
+
+
+64. var Finance = difference.filter(difference("industry_code_a")=== "Finance");
+
+	integrate new column to the Finance table
+
+
+65. var Public = difference.filter(difference("industry_code_a")=== "Public Utility");
+
+	integrate new column to the Public table
+
+
+66. var Commerce = difference.filter(difference("industry_code_a")=== "Commerce");
+
+	integrate new column to the Commerce table
+
+
+
+
+
+67. difference.sort(col("fluctuation").desc).show(15)
+
+	top 15 fluctuation
+
+67. difference.sort(col("fluctuation").asc).show(15)
+
+	Bottom 15 fluctuation
+
+
+
+
+
+68. Public.select(mean("fluctuation")).show();
+	
+	average fluctuation for public table
+
+68. Conglomerates.select(mean("fluctuation")).show();
+	
+	average fluctuation for public table
+
+68. Finance.select(mean("fluctuation")).show();
+	
+	average fluctuation for public table
+
+68. Commerce.select(mean("fluctuation")).show();
+	
+	average fluctuation for public table
+
+68. Properties.select(mean("fluctuation")).show();
+	
+	average fluctuation for public table
+
+68. Industrials.select(mean("fluctuation")).show();
+	
+	average fluctuation for public table
+
+
+
+
